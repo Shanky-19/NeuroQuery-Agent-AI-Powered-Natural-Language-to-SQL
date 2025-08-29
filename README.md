@@ -5,12 +5,10 @@ A real-time chatbot that translates natural language questions into safe, read-o
 ## Application Preview
 
 ### Demo Video
-<video width="800" controls>
-  <source src="public/video/product-demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
 
-*Watch the Natural Language to SQL Chatbot in action*
+[![Watch Demo Video](https://cdn.loom.com/sessions/thumbnails/b473f64d42eb429ea080cea94a4b2ba9-with-play.gif)](https://www.loom.com/share/b473f64d42eb429ea080cea94a4b2ba9?sid=34a88c0a-d862-4540-a8c4-cd51dc46b8b9)
+
+*Click to watch the Natural Language to SQL Chatbot demo*
 
 ### Interface Screenshot
 ![Natural Language to SQL Chatbot Interface](public/images/front-page.png)
