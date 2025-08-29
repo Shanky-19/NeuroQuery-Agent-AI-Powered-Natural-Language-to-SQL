@@ -4,7 +4,7 @@ A real-time chatbot that translates natural language questions into safe, read-o
 
 ## Live Demo
 
-**[Try the Live Demo](https://your-demo-url.com)** | **[Watch Demo Video](https://www.loom.com/share/b473f64d42eb429ea080cea94a4b2ba9)**
+**[Watch Demo Video](https://www.loom.com/share/b473f64d42eb429ea080cea94a4b2ba9)**
 
 ## Application Preview
 
