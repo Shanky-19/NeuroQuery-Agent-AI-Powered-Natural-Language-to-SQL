@@ -1,43 +1,42 @@
-const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
-const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
+const { Server } = require('@modelcontextprotocol/sdk/server/index.js')
+const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js')
 const {
   CallToolRequestSchema,
   ErrorCode,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   McpError,
-  ReadResourceRequestSchema,
-} = require('@modelcontextprotocol/sdk/types.js');
+  ReadResourceRequestSchema
+} = require('@modelcontextprotocol/sdk/types.js')
 
-const database = require('../config/database');
-const schemaService = require('../services/schemaService');
-const queryExecutionService = require('../services/queryExecutionService');
-const logger = require('../utils/logger');
+const schemaService = require('../services/schemaService')
+const queryExecutionService = require('../services/queryExecutionService')
+const logger = require('../utils/logger')
 
 class DatabaseMCPServer {
-  constructor() {
+  constructor () {
     this.server = new Server(
       {
         name: 'nl-to-sql-database',
-        version: '1.0.0',
+        version: '1.0.0'
       },
       {
         capabilities: {
           resources: {},
-          tools: {},
-        },
+          tools: {}
+        }
       }
-    );
+    )
 
-    this.setupHandlers();
+    this.setupHandlers()
   }
 
-  setupHandlers() {
+  setupHandlers () {
     // List available resources (database schema information)
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       try {
-        const schema = await schemaService.getSchema();
-        
+        const schema = await schemaService.getSchema()
+
         const resources = [
           {
             uri: 'database://schema/complete',
@@ -47,7 +46,7 @@ class DatabaseMCPServer {
           },
           {
             uri: 'database://schema/tables',
-            mimeType: 'application/json', 
+            mimeType: 'application/json',
             name: 'Database Tables',
             description: 'List of all database tables with basic information'
           },
@@ -57,7 +56,7 @@ class DatabaseMCPServer {
             name: 'Table Relationships',
             description: 'Foreign key relationships between tables'
           }
-        ];
+        ]
 
         // Add individual table resources
         schema.tables.forEach(table => {
@@ -66,23 +65,23 @@ class DatabaseMCPServer {
             mimeType: 'application/json',
             name: `Table: ${table.name}`,
             description: `Schema and data information for table ${table.name}`
-          });
-        });
+          })
+        })
 
-        return { resources };
+        return { resources }
       } catch (error) {
-        logger.error('MCP ListResources error:', error);
-        throw new McpError(ErrorCode.InternalError, `Failed to list resources: ${error.message}`);
+        logger.error('MCP ListResources error:', error)
+        throw new McpError(ErrorCode.InternalError, `Failed to list resources: ${error.message}`)
       }
-    });
+    })
 
     // Read specific resources
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      const { uri } = request.params;
-      
+      const { uri } = request.params
+
       try {
         if (uri === 'database://schema/complete') {
-          const schema = await schemaService.getSchema();
+          const schema = await schemaService.getSchema()
           return {
             contents: [
               {
@@ -91,17 +90,17 @@ class DatabaseMCPServer {
                 text: JSON.stringify(schema, null, 2)
               }
             ]
-          };
+          }
         }
 
         if (uri === 'database://schema/tables') {
-          const schema = await schemaService.getSchema();
+          const schema = await schemaService.getSchema()
           const tables = schema.tables.map(table => ({
             name: table.name,
             comment: table.comment,
             columnCount: table.columns.length
-          }));
-          
+          }))
+
           return {
             contents: [
               {
@@ -110,13 +109,13 @@ class DatabaseMCPServer {
                 text: JSON.stringify(tables, null, 2)
               }
             ]
-          };
+          }
         }
 
         if (uri === 'database://schema/relationships') {
-          const schema = await schemaService.getSchema();
-          const relationships = [];
-          
+          const schema = await schemaService.getSchema()
+          const relationships = []
+
           schema.tables.forEach(table => {
             table.foreignKeys?.forEach(fk => {
               relationships.push({
@@ -125,9 +124,9 @@ class DatabaseMCPServer {
                 toTable: fk.referencedTable,
                 toColumn: fk.referencedColumn,
                 constraintName: fk.name
-              });
-            });
-          });
+              })
+            })
+          })
 
           return {
             contents: [
@@ -137,18 +136,18 @@ class DatabaseMCPServer {
                 text: JSON.stringify(relationships, null, 2)
               }
             ]
-          };
+          }
         }
 
         // Handle individual table resources
-        const tableMatch = uri.match(/^database:\/\/table\/(.+)$/);
+        const tableMatch = uri.match(/^database:\/\/table\/(.+)$/)
         if (tableMatch) {
-          const tableName = tableMatch[1];
-          const schema = await schemaService.getSchema();
-          const table = schema.tables.find(t => t.name === tableName);
-          
+          const tableName = tableMatch[1]
+          const schema = await schemaService.getSchema()
+          const table = schema.tables.find(t => t.name === tableName)
+
           if (!table) {
-            throw new McpError(ErrorCode.InvalidRequest, `Table ${tableName} not found`);
+            throw new McpError(ErrorCode.InvalidRequest, `Table ${tableName} not found`)
           }
 
           return {
@@ -159,16 +158,16 @@ class DatabaseMCPServer {
                 text: JSON.stringify(table, null, 2)
               }
             ]
-          };
+          }
         }
 
-        throw new McpError(ErrorCode.InvalidRequest, `Unknown resource: ${uri}`);
+        throw new McpError(ErrorCode.InvalidRequest, `Unknown resource: ${uri}`)
       } catch (error) {
-        logger.error('MCP ReadResource error:', error);
-        if (error instanceof McpError) throw error;
-        throw new McpError(ErrorCode.InternalError, `Failed to read resource: ${error.message}`);
+        logger.error('MCP ReadResource error:', error)
+        if (error instanceof McpError) throw error
+        throw new McpError(ErrorCode.InternalError, `Failed to read resource: ${error.message}`)
       }
-    });
+    })
 
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -244,42 +243,42 @@ class DatabaseMCPServer {
             }
           }
         ]
-      };
-    });
+      }
+    })
 
     // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
+      const { name, arguments: args } = request.params
 
       try {
         switch (name) {
           case 'execute_sql_query':
-            return await this.handleExecuteSQL(args);
-          
+            return await this.handleExecuteSQL(args)
+
           case 'get_relevant_schema':
-            return await this.handleGetRelevantSchema(args);
-          
+            return await this.handleGetRelevantSchema(args)
+
           case 'get_table_sample_data':
-            return await this.handleGetSampleData(args);
-          
+            return await this.handleGetSampleData(args)
+
           default:
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
         }
       } catch (error) {
-        logger.error(`MCP Tool ${name} error:`, error);
-        if (error instanceof McpError) throw error;
-        throw new McpError(ErrorCode.InternalError, `Tool execution failed: ${error.message}`);
+        logger.error(`MCP Tool ${name} error:`, error)
+        if (error instanceof McpError) throw error
+        throw new McpError(ErrorCode.InternalError, `Tool execution failed: ${error.message}`)
       }
-    });
+    })
   }
 
-  async handleExecuteSQL(args) {
-    const { sql, page = 1, pageSize = 50, dryRun = false } = args;
+  async handleExecuteSQL (args) {
+    const { sql, page = 1, pageSize = 50, dryRun = false } = args
 
     // Validate SQL is read-only
-    const trimmedSQL = sql.trim().toLowerCase();
+    const trimmedSQL = sql.trim().toLowerCase()
     if (!trimmedSQL.startsWith('select') && !trimmedSQL.startsWith('with')) {
-      throw new McpError(ErrorCode.InvalidRequest, 'Only SELECT queries are allowed');
+      throw new McpError(ErrorCode.InvalidRequest, 'Only SELECT queries are allowed')
     }
 
     const result = await queryExecutionService.executeQuery(sql, {
@@ -287,7 +286,7 @@ class DatabaseMCPServer {
       pageSize: Math.min(parseInt(pageSize), 1000),
       useCache: true,
       dryRun
-    });
+    })
 
     return {
       content: [
@@ -295,73 +294,73 @@ class DatabaseMCPServer {
           type: 'text',
           text: JSON.stringify({
             query: sql,
-            result: result,
+            result,
             executedAt: new Date().toISOString()
           }, null, 2)
         }
       ]
-    };
+    }
   }
 
-  async handleGetRelevantSchema(args) {
-    const { query, maxTables = 10 } = args;
-    
-    const schema = await schemaService.getRelevantSchema(query, maxTables);
-    
+  async handleGetRelevantSchema (args) {
+    const { query, maxTables = 10 } = args
+
+    const schema = await schemaService.getRelevantSchema(query, maxTables)
+
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            query: query,
+            query,
             relevantSchema: schema,
             retrievedAt: new Date().toISOString()
           }, null, 2)
         }
       ]
-    };
+    }
   }
 
-  async handleGetSampleData(args) {
-    const { tableName, limit = 5 } = args;
-    
-    const sampleLimit = Math.min(parseInt(limit), 100);
-    const sql = `SELECT * FROM ${tableName} LIMIT ${sampleLimit}`;
-    
+  async handleGetSampleData (args) {
+    const { tableName, limit = 5 } = args
+
+    const sampleLimit = Math.min(parseInt(limit), 100)
+    const sql = `SELECT * FROM ${tableName} LIMIT ${sampleLimit}`
+
     const result = await queryExecutionService.executeQuery(sql, {
       page: 1,
       pageSize: sampleLimit,
       useCache: true
-    });
+    })
 
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            tableName: tableName,
+            tableName,
             sampleData: result,
             retrievedAt: new Date().toISOString()
           }, null, 2)
         }
       ]
-    };
+    }
   }
 
-  async start() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    logger.info('MCP Database Server started on stdio transport');
+  async start () {
+    const transport = new StdioServerTransport()
+    await this.server.connect(transport)
+    logger.info('MCP Database Server started on stdio transport')
   }
 }
 
-module.exports = DatabaseMCPServer;
+module.exports = DatabaseMCPServer
 
 // If this file is run directly, start the MCP server
 if (require.main === module) {
-  const server = new DatabaseMCPServer();
+  const server = new DatabaseMCPServer()
   server.start().catch(error => {
-    logger.error('Failed to start MCP server:', error);
-    process.exit(1);
-  });
+    logger.error('Failed to start MCP server:', error)
+    process.exit(1)
+  })
 }
