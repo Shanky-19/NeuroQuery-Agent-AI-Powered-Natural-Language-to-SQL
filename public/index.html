@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NL2SQL Chatbot - MCP Powered</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="favicon.svg">
+    
+    <!-- Meta tags for better SEO and sharing -->
+    <meta name="description" content="Natural Language to SQL Chatbot powered by Model Context Protocol (MCP) and OpenAI">
+    <meta name="keywords" content="SQL, Natural Language, MCP, OpenAI, Database, Chatbot">
+    <meta name="author" content="Rovodev">
+    
+    <!-- Open Graph tags for social sharing -->
+    <meta property="og:title" content="NL2SQL Chatbot - MCP Powered">
+    <meta property="og:description" content="Convert natural language to SQL queries using Model Context Protocol">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1><i class="fas fa-database"></i>Natural Language to SQL Chatbot</h1>
+                <div class="header-actions">
+                    <button id="clearHistoryBtn" class="btn btn-secondary">
+                        <i class="fas fa-trash"></i> Clear History
+                    </button>
+                    <button id="statsBtn" class="btn btn-secondary">
+                        <i class="fas fa-chart-bar"></i> Stats
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Chat Container -->
+            <div class="chat-container">
+                <!-- Chat Messages -->
+                <div id="chatMessages" class="chat-messages">
+                    <div class="welcome-message">
+                        <div class="welcome-content">
+                            <h2>Welcome to the Natural Language to SQL Chatbot!</h2>
+                            <p>Ask questions about your database in plain English, and I'll convert them to SQL queries and show you the results.</p>
+                            <div class="example-queries">
+                                <h3>Try these example queries:</h3>
+                                <div class="example-query" onclick="setQuery(this.textContent)">
+                                    "Show me customers who spent more than $1000 total"
+                                </div>
+                                <div class="example-query" onclick="setQuery(this.textContent)">
+                                    "Find all products in the Electronics category"
+                                </div>
+                                <div class="example-query" onclick="setQuery(this.textContent)">
+                                    "What are the total sales by product category?"
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <textarea 
+                            id="queryInput" 
+                            placeholder="Ask a question about your database..." 
+                            rows="2"
+                            maxlength="1000"
+                        ></textarea>
+                        <button id="sendBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="input-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="useCacheCheckbox" checked>
+                            <span class="checkmark"></span>
+                            Use cache for faster responses
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="dryRunCheckbox">
+                            <span class="checkmark"></span>
+                            Dry run (generate SQL only)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <!-- Query History -->
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-history"></i> Recent Queries</h3>
+                    <div id="queryHistory" class="query-history">
+                        <div class="history-empty">
+                            <p>No recent queries</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Status -->
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-server"></i> System Status</h3>
+                    <div id="systemStatus" class="system-status">
+                        <div class="status-item">
+                            <span class="status-label">Database:</span>
+                            <span class="status-value" id="dbStatus">Checking...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Cache:</span>
+                            <span class="status-value" id="cacheStatus">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processing your query...</p>
+        </div>
+    </div>
+
+    <!-- Modal for Stats -->
+    <div id="statsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-chart-line"></i> System Statistics</h2>
+                <button class="modal-close" onclick="closeModal('statsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="statsContent">
+                <div class="loading-stats">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading system statistics...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="cache-indicators.js"></script>
+    <script>
+        // Global variables
+        let queryHistory = [];
+        let currentPage = 1;
+        const pageSize = 50;
+
+        // DOM elements
+        const queryInput = document.getElementById('queryInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatMessages = document.getElementById('chatMessages');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const useCacheCheckbox = document.getElementById('useCacheCheckbox');
+        const dryRunCheckbox = document.getElementById('dryRunCheckbox');
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            setupEventListeners();
+            checkSystemHealth();
+            loadQueryHistory();
+        });
+
+        function initializeApp() {
+            console.log('Natural Language to SQL Chatbot initialized');
+        }
+
+        function setupEventListeners() {
+            // Send button click
+            sendBtn.addEventListener('click', handleSendQuery);
+
+            // Enter key in textarea
+            queryInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendQuery();
+                }
+            });
+
+            // Clear history button
+            document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
+
+            // Stats button
+            document.getElementById('statsBtn').addEventListener('click', showStats);
+
+            // Auto-resize textarea
+            queryInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+        }
+
+        async function handleSendQuery() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            const useCache = useCacheCheckbox.checked;
+            const dryRun = dryRunCheckbox.checked;
+
+            // Clear input and show loading
+            queryInput.value = '';
+            queryInput.style.height = 'auto';
+            showLoading(true);
+            window.queryStartTime = Date.now(); // Track processing time
+
+            // Add user message to chat
+            addMessageToChat('user', query);
+
+            try {
+                const response = await fetch('/api/v1/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query,
+                        page: 1,
+                        pageSize,
+                        useCache,
+                        dryRun
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addQueryResultToChat(result.data);
+                    addToHistory(query, result.data);
+                } else {
+                    addMessageToChat('error', result.message || 'An error occurred while processing your query.');
+                }
+            } catch (error) {
+                console.error('Query error:', error);
+                addMessageToChat('error', 'Failed to connect to the server. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function addMessageToChat(type, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+
+            if (type === 'user') {
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(content)}</div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                `;
+            } else if (type === 'error') {
+                messageDiv.innerHTML = `
+                    <div class="message-content">
+                        <div class="error-content">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>${escapeHtml(content)}</span>
+                        </div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                `;
+            }
+
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addQueryResultToChat(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot-message';
+
+            const hasResults = data.result && data.result.rows && data.result.rows.length > 0;
+            const isFromCache = data.result && (data.result.cached || data.result.llmCached);
+
+            let resultContent = '';
+            if (hasResults) {
+                resultContent = createResultTable(data.result);
+            } else if (data.result && data.result.dryRun) {
+                resultContent = '<div class="dry-run-notice"><i class="fas fa-info-circle"></i> Dry run completed - SQL query validated successfully</div>';
+            } else {
+                resultContent = '<div class="no-results"><i class="fas fa-info-circle"></i> No results found</div>';
+            }
+
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="sql-section">
+                        <div class="sql-header">
+                            <h4><i class="fas fa-code"></i> Generated SQL</h4>
+                            <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(data.generatedSQL)}')">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                        <pre class="sql-code">${escapeHtml(data.generatedSQL)}</pre>
+                    </div>
+                    
+                    ${data.reasoning ? `
+                    <div class="reasoning-section">
+                        <h4><i class="fas fa-lightbulb"></i> Reasoning</h4>
+                        <p>${escapeHtml(data.reasoning)}</p>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="results-section">
+                        <h4><i class="fas fa-table"></i> Results</h4>
+                        ${resultContent}
+                    </div>
+                    
+                    <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                </div>
+            `;
+
+            // Add cache indicators if available
+            if (isFromCache) {
+                const cacheIndicator = createCacheIndicator(
+                    data.result.llmCached || false,
+                    data.result.cached || false
+                );
+                messageDiv.querySelector('.message-content').appendChild(cacheIndicator);
+            }
+
+            // Add performance info if available
+            if (data.result && data.result.executionTime !== undefined) {
+                const performanceInfo = createPerformanceInfo(
+                    data.result.executionTime,
+                    data.result.data ? data.result.data.length : 0,
+                    data.result.llmCached || false,
+                    data.result.cached || false,
+                    data.result
+                );
+                messageDiv.querySelector('.message-content').appendChild(performanceInfo);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function createResultTable(result) {
+            if (!result.rows || result.rows.length === 0) {
+                return '<div class="no-results"><i class="fas fa-info-circle"></i> No results found</div>';
+            }
+
+            const fields = result.metadata?.fields?.map(f => f.name) || Object.keys(result.rows[0]);
+            
+            let tableHtml = `
+                <div class="table-container">
+                    <div class="table-header">
+                        <div class="table-info">
+                            <h4><i class="fas fa-table"></i> Query Results</h4>
+                            <div class="table-meta">
+                                <span class="result-count">${result.rows.length} row${result.rows.length !== 1 ? 's' : ''}</span>
+                                <span class="column-count">${fields.length} column${fields.length !== 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        <div class="table-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="exportTableData(this)" title="Export to CSV">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-scroll-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>`;
+            
+            // Header
+            fields.forEach(field => {
+                tableHtml += `<th>${escapeHtml(field)}</th>`;
+            });
+            tableHtml += `</tr>
+                            </thead>
+                            <tbody>`;
+            
+            // Body
+            result.rows.forEach((row, index) => {
+                tableHtml += '<tr>';
+                fields.forEach(field => {
+                    const value = row[field];
+                    let cellContent;
+                    if (value === null || value === undefined) {
+                        cellContent = '<span class="null-value">NULL</span>';
+                    } else if (typeof value === 'number') {
+                        cellContent = `<span class="number-value">${value.toLocaleString()}</span>`;
+                    } else if (typeof value === 'boolean') {
+                        cellContent = `<span class="boolean-value ${value}">${value}</span>`;
+                    } else {
+                        cellContent = escapeHtml(String(value));
+                    }
+                    tableHtml += `<td title="${escapeHtml(String(value))}">${cellContent}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+            
+            tableHtml += `</tbody>
+                        </table>
+                    </div>`;
+
+            // Table footer with better positioned info
+            tableHtml += `
+                <div class="table-footer">
+                    <div class="table-footer-info">
+                        <div class="result-count">
+                            <i class="fas fa-check-circle"></i>
+                            ${result.rows.length} result${result.rows.length !== 1 ? 's' : ''}
+                        </div>
+                    </div>
+                    <div class="scroll-indicator">
+                        <i class="fas fa-arrows-alt"></i>
+                        Scroll to view all data
+                    </div>
+                </div>
+            `;
+
+            tableHtml += '</div>';
+            return tableHtml;
+        }
+
+        function setQuery(query) {
+            // Clean the query text (remove quotes if present)
+            const cleanQuery = query.replace(/^["']|["']$/g, '').trim();
+            
+            // Set the value and reset textarea height
+            queryInput.value = cleanQuery;
+            queryInput.style.height = 'auto';
+            queryInput.style.height = Math.min(queryInput.scrollHeight, 120) + 'px';
+            
+            // Focus and position cursor at the end
+            queryInput.focus();
+            
+            // Ensure cursor is at the end of the text
+            setTimeout(() => {
+                queryInput.setSelectionRange(cleanQuery.length, cleanQuery.length);
+                queryInput.scrollTop = 0; // Reset scroll position
+            }, 0);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Show a brief success message
+                const btn = event.target.closest('.copy-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                }, 2000);
+            });
+        }
+
+        function exportTableData(button) {
+            try {
+                const tableContainer = button.closest('.table-container');
+                const table = tableContainer.querySelector('.data-table');
+                
+                if (!table) {
+                    alert('No table data to export');
+                    return;
+                }
+
+                // Extract table data
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+                const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr => 
+                    Array.from(tr.querySelectorAll('td')).map(td => {
+                        // Get the actual value, not the formatted HTML
+                        const title = td.getAttribute('title');
+                        return title || td.textContent.trim();
+                    })
+                );
+
+                // Convert to CSV
+                const csvContent = [
+                    headers.join(','),
+                    ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+                ].join('\n');
+
+                // Download CSV
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `query_results_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Visual feedback
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Exported!';
+                button.disabled = true;
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 2000);
+            } catch (error) {
+                console.error('Export failed:', error);
+                alert('Failed to export data. Please try again.');
+            }
+        }
+
+        function showLoading(show) {
+            const existingLoader = document.querySelector('.chat-loader');
+            
+            if (show) {
+                // Remove existing loader if any
+                if (existingLoader) {
+                    existingLoader.remove();
+                }
+                
+                // Create new creative loader
+                const loaderDiv = document.createElement('div');
+                loaderDiv.className = 'chat-loader';
+                loaderDiv.innerHTML = `
+                    <div class="loader-content">
+                        <div class="brain-loader">
+                            <div class="brain-wave"></div>
+                            <div class="brain-wave"></div>
+                            <div class="brain-wave"></div>
+                        </div>
+                        <div class="loader-text">
+                            <div class="loading-text">
+                                <i class="fas fa-magic"></i>
+                                Processing your query
+                            </div>
+                            <div class="loading-subtext">
+                                Analyzing database schema and generating SQL with MCP
+                                <div class="processing-dots">
+                                    <div></div>
+                                    <div></div>
+                                    <div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Add to chat messages
+                chatMessages.appendChild(loaderDiv);
+                scrollToBottom();
+            } else {
+                // Remove loader
+                if (existingLoader) {
+                    existingLoader.remove();
+                }
+            }
+        }
+
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function checkSystemHealth() {
+            try {
+                const response = await fetch('/health');
+                const health = await response.json();
+                
+                document.getElementById('dbStatus').textContent = health.services.database;
+                document.getElementById('cacheStatus').textContent = health.services.redis;
+                
+                // Update status colors
+                document.getElementById('dbStatus').className = `status-value ${health.services.database === 'connected' ? 'status-healthy' : 'status-unhealthy'}`;
+                document.getElementById('cacheStatus').className = `status-value ${health.services.redis === 'connected' ? 'status-healthy' : 'status-unhealthy'}`;
+            } catch (error) {
+                console.error('Health check failed:', error);
+                document.getElementById('dbStatus').textContent = 'Error';
+                document.getElementById('cacheStatus').textContent = 'Error';
+            }
+        }
+
+        function addToHistory(query, result) {
+            queryHistory.unshift({
+                query,
+                result,
+                timestamp: new Date()
+            });
+            
+            // Keep only last 10 items
+            if (queryHistory.length > 10) {
+                queryHistory = queryHistory.slice(0, 10);
+            }
+            
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const historyContainer = document.getElementById('queryHistory');
+            
+            if (queryHistory.length === 0) {
+                historyContainer.innerHTML = '<div class="history-empty"><p>No recent queries</p></div>';
+                return;
+            }
+            
+            historyContainer.innerHTML = queryHistory.map(item => `
+                <div class="history-item" onclick="setQuery('${escapeHtml(item.query)}')">
+                    <div class="history-query">${escapeHtml(item.query.substring(0, 50))}${item.query.length > 50 ? '...' : ''}</div>
+                    <div class="history-time">${item.timestamp.toLocaleTimeString()}</div>
+                </div>
+            `).join('');
+        }
+
+        function loadQueryHistory() {
+            // This would typically load from localStorage or server
+            updateHistoryDisplay();
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear the query history?')) {
+                queryHistory = [];
+                updateHistoryDisplay();
+            }
+        }
+
+        async function showStats() {
+            const modal = document.getElementById('statsModal');
+            const content = document.getElementById('statsContent');
+            
+            // Show modal with loading state
+            content.innerHTML = `
+                <div class="loading-stats">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading system statistics...</p>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('show'), 10);
+            
+            try {
+                const response = await fetch('/api/v1/stats');
+                const stats = await response.json();
+                
+                if (stats.success) {
+                    content.innerHTML = createStatsContent(stats.data);
+                } else {
+                    content.innerHTML = `
+                        <div class="loading-stats">
+                            <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+                            <p>Failed to load statistics</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+                content.innerHTML = `
+                    <div class="loading-stats">
+                        <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+                        <p>Error loading statistics</p>
+                    </div>
+                `;
+            }
+        }
+
+        function createStatsContent(stats) {
+            return `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3><i class="fas fa-server"></i> System</h3>
+                        <p>Uptime: <span class="stat-value">${Math.floor(stats.system.uptime / 3600)}h ${Math.floor((stats.system.uptime % 3600) / 60)}m</span></p>
+                        <p>Memory: <span class="stat-value">${Math.round(stats.system.memory.heapUsed / 1024 / 1024)}MB</span></p>
+                        <p>Node Version: <span class="stat-value">${stats.system.nodeVersion}</span></p>
+                        <p>Platform: <span class="stat-value">${stats.system.platform || 'Unknown'}</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i class="fas fa-database"></i> Database</h3>
+                        <p>Tables: <span class="stat-value">${stats.schema?.tableCount || 'N/A'}</span></p>
+                        <p>Status: <span class="stat-value">${stats.schema?.status || 'Unknown'}</span></p>
+                        <p>Connection: <span class="stat-value">Active</span></p>
+                        <p>Last Query: <span class="stat-value">${new Date().toLocaleTimeString()}</span></p>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i class="fas fa-memory"></i> Cache</h3>
+                        <p>Status: <span class="stat-value">${stats.cache?.status || 'Unknown'}</span></p>
+                        <p>Hit Rate: <span class="stat-value">${stats.cache?.hitRate ? (stats.cache.hitRate * 100).toFixed(1) + '%' : 'N/A'}</span></p>
+                        <p>Total Hits: <span class="stat-value">${stats.cache?.hits || 'N/A'}</span></p>
+                        <p>Total Misses: <span class="stat-value">${stats.cache?.misses || 'N/A'}</span></p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('show');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                const modal = event.target;
+                modal.classList.remove('show');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const modal = document.querySelector('.modal.show');
+                if (modal) {
+                    closeModal(modal.id);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
